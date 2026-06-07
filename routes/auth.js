@@ -6,7 +6,7 @@ const { verifyToken } = require('../middleware/auth');
 const router = express.Router();
 
 // Вспомогательная функция для создания сессии в cookie
-function loginSession(res, userId, role) {
+function loginSession(req, res, userId, role) {
     const payload = { userId, role };
     const expires = 24 * 60 * 60 * 1000; // 24 часа
     
@@ -14,7 +14,7 @@ function loginSession(res, userId, role) {
         expiresIn: '24h' 
     });
     
-    const isHttps = process.env.NODE_ENV === 'production';
+    const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
     
     res.cookie('session', token, {
         maxAge: expires,
@@ -58,7 +58,7 @@ router.post('/register', async (req, res) => {
         );
         
         const userId = result.lastID;
-        loginSession(res, userId, role);
+        loginSession(req, res, userId, role);
         
         res.status(201).json({
             message: 'Регистрация успешна',
@@ -91,7 +91,7 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ error: 'Неверное имя пользователя или пароль.' });
         }
         
-        loginSession(res, user.id, user.role);
+        loginSession(req, res, user.id, user.role);
         
         res.json({
             message: 'Вход выполнен успешно',
