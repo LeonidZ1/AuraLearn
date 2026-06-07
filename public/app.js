@@ -883,6 +883,10 @@ async function loadAdminQuestionsTable() {
                 </td>
             `;
             
+            // Навешиваем обработчики клика напрямую на кнопки в строке
+            tr.querySelector('.btn-edit-question').addEventListener('click', () => openEditQuestionModal(q.id));
+            tr.querySelector('.btn-delete-question').addEventListener('click', () => deleteQuestion(q.id));
+            
             DOM.adminQuestionsBody.appendChild(tr);
         });
         
@@ -1110,13 +1114,11 @@ DOM.questionForm.addEventListener('submit', async (e) => {
 
 // Удаление вопроса
 async function deleteQuestion(id) {
-    if (confirm(`Вы уверены, что хотите удалить вопрос #${id}? Это безвозвратно удалит всю связанную историю попыток.`)) {
-        try {
-            await apiRequest(`/api/admin/questions/${id}`, { method: 'DELETE' });
-            loadAdminQuestionsTable();
-        } catch (e) {
-            alert('Не удалось удалить вопрос.');
-        }
+    try {
+        await apiRequest(`/api/admin/questions/${id}`, { method: 'DELETE' });
+        loadAdminQuestionsTable();
+    } catch (e) {
+        alert('Не удалось удалить вопрос.');
     }
 }
 
@@ -1165,6 +1167,11 @@ async function loadAdminCategoriesTable() {
                     </button>
                 </td>
             `;
+            
+            // Навешиваем обработчики клика напрямую на кнопки в строке
+            tr.querySelector('.btn-edit-category').addEventListener('click', () => openEditCategoryModal(cat.id));
+            tr.querySelector('.btn-delete-category').addEventListener('click', () => deleteCategory(cat.id));
+            
             DOM.adminCategoriesBody.appendChild(tr);
         });
         
@@ -1287,44 +1294,16 @@ DOM.categoryForm.addEventListener('submit', async (e) => {
 });
 
 async function deleteCategory(id) {
-    if (confirm(`Вы уверены, что хотите удалить это направление? Это безвозвратно удалит направление и ВСЕ входящие в него вопросы!`)) {
-        try {
-            await apiRequest(`/api/admin/categories/${id}`, { method: 'DELETE' });
-            loadAdminCategoriesTable();
-            loadCategorySelects();
-        } catch (e) {
-            alert('Не удалось удалить направление.');
-        }
+    try {
+        await apiRequest(`/api/admin/categories/${id}`, { method: 'DELETE' });
+        loadAdminCategoriesTable();
+        loadCategorySelects();
+    } catch (e) {
+        alert('Не удалось удалить направление.');
     }
 }
 
-// Делегирование кликов для таблицы вопросов
-DOM.adminQuestionsBody.addEventListener('click', (e) => {
-    const editBtn = e.target.closest('.btn-edit-question');
-    const deleteBtn = e.target.closest('.btn-delete-question');
-    
-    if (editBtn) {
-        const id = editBtn.getAttribute('data-id');
-        openEditQuestionModal(id);
-    } else if (deleteBtn) {
-        const id = deleteBtn.getAttribute('data-id');
-        deleteQuestion(id);
-    }
-});
 
-// Делегирование кликов для таблицы категорий
-DOM.adminCategoriesBody.addEventListener('click', (e) => {
-    const editBtn = e.target.closest('.btn-edit-category');
-    const deleteBtn = e.target.closest('.btn-delete-category');
-    
-    if (editBtn) {
-        const id = editBtn.getAttribute('data-id');
-        openEditCategoryModal(id);
-    } else if (deleteBtn) {
-        const id = deleteBtn.getAttribute('data-id');
-        deleteCategory(id);
-    }
-});
 
 // При изменении фильтра вопросов
 DOM.adminQuestionCategoryFilter.addEventListener('change', () => {
