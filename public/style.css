@@ -992,6 +992,10 @@ textarea {
     transition: var(--transition);
 }
 
+.action-icon-btn i {
+    pointer-events: none;
+}
+
 .action-icon-btn.edit:hover {
     color: var(--secondary);
     border-color: var(--secondary);

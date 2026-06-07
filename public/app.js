@@ -886,21 +886,6 @@ async function loadAdminQuestionsTable() {
             DOM.adminQuestionsBody.appendChild(tr);
         });
         
-        // Навешиваем события на кнопки редактирования и удаления
-        document.querySelectorAll('.btn-edit-question').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const id = btn.getAttribute('data-id');
-                openEditQuestionModal(id);
-            });
-        });
-        
-        document.querySelectorAll('.btn-delete-question').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const id = btn.getAttribute('data-id');
-                deleteQuestion(id);
-            });
-        });
-        
     } catch (e) {
         alert('Не удалось загрузить список вопросов для панели админа.');
     }
@@ -1183,21 +1168,6 @@ async function loadAdminCategoriesTable() {
             DOM.adminCategoriesBody.appendChild(tr);
         });
         
-        // Вешаем события на кнопки редактирования и удаления категорий
-        document.querySelectorAll('.btn-edit-category').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const id = btn.getAttribute('data-id');
-                openEditCategoryModal(id);
-            });
-        });
-        
-        document.querySelectorAll('.btn-delete-category').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const id = btn.getAttribute('data-id');
-                deleteCategory(id);
-            });
-        });
-        
     } catch (e) {
         alert('Не удалось загрузить список направлений.');
     }
@@ -1327,6 +1297,34 @@ async function deleteCategory(id) {
         }
     }
 }
+
+// Делегирование кликов для таблицы вопросов
+DOM.adminQuestionsBody.addEventListener('click', (e) => {
+    const editBtn = e.target.closest('.btn-edit-question');
+    const deleteBtn = e.target.closest('.btn-delete-question');
+    
+    if (editBtn) {
+        const id = editBtn.getAttribute('data-id');
+        openEditQuestionModal(id);
+    } else if (deleteBtn) {
+        const id = deleteBtn.getAttribute('data-id');
+        deleteQuestion(id);
+    }
+});
+
+// Делегирование кликов для таблицы категорий
+DOM.adminCategoriesBody.addEventListener('click', (e) => {
+    const editBtn = e.target.closest('.btn-edit-category');
+    const deleteBtn = e.target.closest('.btn-delete-category');
+    
+    if (editBtn) {
+        const id = editBtn.getAttribute('data-id');
+        openEditCategoryModal(id);
+    } else if (deleteBtn) {
+        const id = deleteBtn.getAttribute('data-id');
+        deleteCategory(id);
+    }
+});
 
 // При изменении фильтра вопросов
 DOM.adminQuestionCategoryFilter.addEventListener('change', () => {
