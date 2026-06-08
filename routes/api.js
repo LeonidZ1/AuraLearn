@@ -4,6 +4,37 @@ const { getDb } = require('../config/db');
 const { verifyToken } = require('../middleware/auth');
 const router = express.Router();
 
+// Функция расчета расстояния Левенштейна для поиска опечаток
+function getLevenshteinDistance(a, b) {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) {
+        matrix[i] = [i];
+    }
+    for (let j = 0; j <= a.length; j++) {
+        matrix[0][j] = j;
+    }
+
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1, // замена
+                    Math.min(
+                        matrix[i][j - 1] + 1, // вставка
+                        matrix[i - 1][j] + 1  // удаление
+                    )
+                );
+            }
+        }
+    }
+    return matrix[b.length][a.length];
+}
+
 // Получить список категорий
 router.get('/categories', verifyToken, async (req, res) => {
     try {
@@ -79,6 +110,7 @@ router.post('/check', verifyToken, async (req, res) => {
 
         const keywords = JSON.parse(question.keywords || '[]');
         const normalizedAnswer = String(userAnswer).toLowerCase().trim().replace(/[.,!?]/g, '');
+        const normalizedCorrectAnswer = String(question.correct_answer || '').toLowerCase().trim().replace(/[.,!?]/g, '');
         
         let matchCount = 0;
         let matchedWords = [];
@@ -90,33 +122,65 @@ router.post('/check', verifyToken, async (req, res) => {
                 matchCount++;
                 matchedWords.push(keyword);
             } else {
-                // 2. Сравнение по коэффициенту Сёренсена-Дайса (порог 0.75)
-                // Сплитим ответ по пробелам для точечного сравнения слов в ответе, если это фраза
-                const answerWords = normalizedAnswer.split(/\s+/);
-                let bestWordSimilarity = 0;
+                // 2. Нечеткое сравнение (Сёренсен-Дайс или расстояние Левенштейна)
+                const answerWords = normalizedAnswer.split(/\s+/).filter(w => w.length > 0);
+                let isMatched = false;
                 
                 for (const aWord of answerWords) {
                     if (aWord.length < 3 && lowerKeyword.length >= 3) continue; // исключаем предлоги
+                    
+                    const dist = getLevenshteinDistance(aWord, lowerKeyword);
+                    const isLevenshteinMatch = (dist <= 1) || (lowerKeyword.length >= 7 && dist <= 2);
                     const sim = stringSimilarity.compareTwoStrings(aWord, lowerKeyword);
-                    if (sim > bestWordSimilarity) {
-                        bestWordSimilarity = sim;
+                    
+                    if (isLevenshteinMatch || sim >= 0.75) {
+                        isMatched = true;
+                        break;
                     }
                 }
                 
-                // Проверяем схожесть и всей фразы тоже
-                const fullSimilarity = stringSimilarity.compareTwoStrings(normalizedAnswer, lowerKeyword);
-                const finalSimilarity = Math.max(bestWordSimilarity, fullSimilarity);
+                if (!isMatched) {
+                    const fullSim = stringSimilarity.compareTwoStrings(normalizedAnswer, lowerKeyword);
+                    const fullDist = getLevenshteinDistance(normalizedAnswer, lowerKeyword);
+                    const isFullLevenshteinMatch = (fullDist <= 1) || (lowerKeyword.length >= 7 && fullDist <= 2);
+                    
+                    if (isFullLevenshteinMatch || fullSim >= 0.75) {
+                        isMatched = true;
+                    }
+                }
                 
-                if (finalSimilarity >= 0.75) {
+                if (isMatched) {
                     matchCount++;
                     matchedWords.push(keyword);
                 }
             }
         }
         
-        // Условие успеха: найдено >= 60% ключевых слов
-        const threshold = Math.ceil(keywords.length * 0.6);
-        const isCorrect = keywords.length === 0 ? true : (matchCount >= threshold);
+        // Определяем, является ли ответ коротким (до 3 слов включительно)
+        const correctWords = normalizedCorrectAnswer.split(/\s+/).filter(w => w.length > 0);
+        const isShortAnswer = correctWords.length <= 3;
+        
+        let isCorrect = false;
+        if (keywords.length === 0) {
+            isCorrect = true;
+        } else if (isShortAnswer) {
+            // Для коротких ответов достаточно совпадения хотя бы одного ключевого слова
+            isCorrect = matchCount >= 1;
+        } else {
+            // Для длинных ответов требуется совпадение не менее 60% ключевых слов
+            const threshold = Math.ceil(keywords.length * 0.6);
+            isCorrect = matchCount >= threshold;
+        }
+        
+        // Дополнительная прямая проверка на совпадение с эталонным ответом (включая опечатки)
+        const directMatch = (normalizedAnswer === normalizedCorrectAnswer) ||
+                            (stringSimilarity.compareTwoStrings(normalizedAnswer, normalizedCorrectAnswer) >= 0.8) ||
+                            (getLevenshteinDistance(normalizedAnswer, normalizedCorrectAnswer) <= 1) ||
+                            (normalizedCorrectAnswer.length >= 7 && getLevenshteinDistance(normalizedAnswer, normalizedCorrectAnswer) <= 2);
+        
+        if (directMatch) {
+            isCorrect = true;
+        }
         
         // Запись попытки в СУБД с сохранением времени
         await db.run(
